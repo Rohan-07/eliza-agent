@@ -1,0 +1,72 @@
+{
+	"name": "Sample JSON Data",
+	"description": "This is a sample JSON file with various data types and structures",
+	"version": 1.0,
+	"isActive": true,
+	"tags": ["sample", "test", "json", "viewer"],
+	"metadata": {
+		"createdAt": "2025-02-25T10:00:00Z",
+		"author": {
+			"name": "JSON Validator",
+			"email": "json@example.com",
+			"role": "tester"
+		},
+		"stats": {
+			"views": 1250,
+			"downloads": 843,
+			"ratings": [4, 5, 3, 5, 4, 5]
+		}
+	},
+	"features": [
+		{
+			"id": 1,
+			"name": "JSON Validation",
+			"enabled": true,
+			"description": "Validates JSON syntax and structure"
+		},
+		{
+			"id": 2,
+			"name": "Tree View",
+			"enabled": true,
+			"description": "Displays JSON data in a collapsible tree view"
+		},
+		{
+			"id": 3,
+			"name": "Error Reporting",
+			"enabled": true,
+			"description": "Shows detailed error messages for invalid JSON"
+		},
+		{
+			"id": 4,
+			"name": "Export Options",
+			"enabled": false,
+			"description": "Export JSON data in different formats"
+		}
+	],
+	"config": {
+		"theme": "dark",
+		"fontSize": 14,
+		"indentation": 2,
+		"maxDepth": null,
+		"showLineNumbers": true,
+		"collapseLevel": 1
+	},
+	"emptyArray": [],
+	"nullValue": null,
+	"nestedArrays": [
+		[1, 2, 3],
+		[4, 5, 6],
+		[7, 8, 9]
+	],
+	"deeplyNested": {
+		"level1": {
+			"level2": {
+				"level3": {
+					"level4": {
+						"level5": "This is a deeply nested value"
+					}
+				}
+			}
+		}
+	}
+}
