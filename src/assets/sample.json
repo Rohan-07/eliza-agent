@@ -1,0 +1,41 @@
+{
+	"name": "Agent",
+	"clients": ["telegram"],
+	"modelProvider": "openai",
+	"settings": {
+		"secrets": {},
+		"voice": {
+			"model": "en_GB-male-medium"
+		}
+	},
+	"plugins": ["translation", "protocol_assistance"],
+	"bio": ["Something about the agent", "Something more about the agent"],
+	"lore": [
+		"Short snippets of factual or historical information about the character that can be composed together in a random order."
+	],
+	"knowledge": ["A unique identifier for the knowledge item."],
+	"messageExamples": [
+		[
+			{
+				"user": "The user name or placeholder (e.g., {{user1}}, {{user2}}, etc.) for the user in the conversation.",
+				"content": {
+					"text": "The text content of the message."
+				}
+			}
+		]
+	],
+	"postExamples": [
+		"Examples of tweets or posts that the character would create, capturing their style, tone, and interests."
+	],
+	"topics": ["Topics the character is interested in."],
+	"style": {
+		"all": [
+			"General style directions for how the character should speak or write."
+		],
+		"chat": ["Style directions specifically for chat contexts, like Discord."],
+		"post": ["Style directions specifically for post contexts, like Twitter."]
+	},
+	"adjectives": [
+		"Adjectives describing the character that can be used in prompts."
+	]
+}

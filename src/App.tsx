@@ -1,78 +1,104 @@
-import { useState } from "react";
-import { characterSchema, formatZodError } from "./lib/schema"; // Assuming schema.js contains your Zod schema
+import { useState, useEffect } from "react";
+import { CharacterSchema, validateCharacterConfig } from "./lib/schema";
+import { z } from "zod";
+import JsonViewer from "./components/JsonViewer";
+import sampleJson from "./assets/sample.json";
+
+interface ValidationError {
+	path?: string;
+	message: string;
+	code?: string;
+}
 
 function App() {
-	const [file, setFile] = useState(null);
-	const [character, setCharacter] = useState(null);
-	const [errors, setErrors] = useState(null);
-	const [isLoading, setIsLoading] = useState(false);
+	const [jsonData, setJsonData] = useState<any>(null);
+	const [validatedData, setValidatedData] = useState<any>(null);
+	const [errors, setErrors] = useState<ValidationError[] | null>(null);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [selectedFile, setSelectedFile] = useState<string>("sample.json");
 
-	const handleFileChange = (e) => {
-		const selectedFile = e.target.files[0];
-		setFile(selectedFile);
-		setErrors(null);
-		setCharacter(null);
-	};
-
-	const validateFile = async () => {
-		if (!file) return;
-
-		setIsLoading(true);
-		setErrors(null);
-
-		try {
-			const text = await file.text();
-			const json = JSON.parse(text);
+	// Load and validate JSON data on component mount
+	useEffect(() => {
+		const loadJsonData = async () => {
+			setIsLoading(true);
+			setErrors(null);
 
 			try {
-				// Validate against schema
-				const validatedData = characterSchema.parse(json);
-				setCharacter(validatedData);
-				setErrors(null);
-			} catch (validationError) {
-				setCharacter(null);
-				setErrors(formatZodError(validationError));
+				// We're using the imported JSON directly
+				setJsonData(sampleJson);
+
+				try {
+					// Validate against the character schema
+					const validated = validateCharacterConfig(sampleJson);
+					setValidatedData(validated);
+					setErrors(null);
+				} catch (validationError) {
+					if (validationError instanceof z.ZodError) {
+						// Convert Zod errors to our format
+						const groupedErrors = validationError.errors.reduce((acc, err) => {
+							const path = err.path.join(".");
+							if (!acc[path]) {
+								acc[path] = [];
+							}
+							acc[path].push(err.message);
+							return acc;
+						}, {} as Record<string, string[]>);
+
+						// Transform grouped errors to our ValidationError format
+						const formattedErrors = Object.entries(groupedErrors).map(
+							([path, messages]) => ({
+								path,
+								message: messages.join(" - "),
+								code: "validation_error",
+							})
+						);
+
+						setErrors(formattedErrors);
+					} else {
+						setErrors([
+							{
+								message: `Validation error: ${
+									(validationError as Error).message
+								}`,
+							},
+						]);
+					}
+					setValidatedData(null);
+				}
+			} catch (error) {
+				setJsonData(null);
+				setValidatedData(null);
+				setErrors([
+					{
+						message: `Error loading JSON: ${(error as Error).message}`,
+					},
+				]);
+			} finally {
+				setIsLoading(false);
 			}
-		} catch (error) {
-			setCharacter(null);
-			setErrors([
-				{ path: "file", message: "Invalid JSON format", code: "custom" },
-			]);
-		} finally {
-			setIsLoading(false);
-		}
-	};
+		};
+
+		loadJsonData();
+	}, [selectedFile]);
 
 	return (
 		<div className="container mx-auto p-6 max-w-4xl">
 			<h1 className="text-3xl font-bold mb-6">Character JSON Validator</h1>
 
 			<div className="mb-6 p-4 bg-gray-100 rounded-lg">
-				<div className="flex items-center gap-4">
-					<input
-						type="file"
-						accept=".json"
-						onChange={handleFileChange}
-						className="file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-					/>
-					<button
-						onClick={validateFile}
-						disabled={!file || isLoading}
-						className={`px-4 py-2 rounded-lg font-medium ${
-							!file || isLoading
-								? "bg-gray-300 text-gray-500 cursor-not-allowed"
-								: "bg-blue-600 text-white hover:bg-blue-700"
-						}`}
-					>
-						{isLoading ? "Validating..." : "Validate JSON"}
-					</button>
+				<div className="flex items-center justify-between">
+					<div>
+						<h2 className="text-xl font-semibold">Character Configuration</h2>
+						<p className="text-gray-600">
+							{selectedFile} {isLoading ? "(Loading...)" : ""}
+						</p>
+					</div>
+					{validatedData && !errors && (
+						<span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+							Valid Character Config
+						</span>
+					)}
 				</div>
-
-				{file && (
-					<p className="mt-2 text-sm text-gray-600">
-						Selected file: {file.name} ({Math.round(file.size / 1024)} KB)
-					</p>
-				)}
 			</div>
 
 			{errors && (
@@ -80,113 +106,179 @@ function App() {
 					<h2 className="text-xl font-semibold text-red-700 mb-2">
 						Validation Errors
 					</h2>
-					<ul className="space-y-1">
-						{errors.map((error, index) => (
-							<li key={index} className="text-red-600">
-								<span className="font-medium">{error.path || "General"}:</span>{" "}
-								{error.message}
-							</li>
-						))}
+					<p className="text-gray-700 mb-3">
+						The following issues were found in your character configuration:
+					</p>
+					<ul className="space-y-3">
+						{errors.map((error, index) => {
+							// Get a user-friendly field name
+							const fieldName = error.path
+								? error.path
+										.split(".")
+										.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+										.join(" → ")
+								: "General";
+
+							// Get a user-friendly error message
+							let friendlyMessage = error.message;
+
+							// Replace common Zod error messages with more user-friendly ones
+							if (friendlyMessage.includes("Required")) {
+								friendlyMessage = "This field is required and cannot be empty";
+							} else if (friendlyMessage.includes("Expected")) {
+								friendlyMessage = friendlyMessage.replace(
+									"Expected",
+									"Should be"
+								);
+							}
+
+							// Add suggestions based on the error type
+							let suggestion = "";
+							if (error.code === "invalid_type") {
+								suggestion = "Check the data type of this field";
+							} else if (error.path?.includes("modelProvider")) {
+								suggestion =
+									"Make sure the model provider is one of the allowed values";
+							} else if (error.path?.includes("plugins")) {
+								suggestion = "Ensure plugins are properly formatted";
+							}
+
+							return (
+								<li
+									key={index}
+									className="bg-white p-3 rounded shadow-sm border border-red-100"
+								>
+									<div className="font-medium text-red-700 mb-1">
+										{fieldName}
+									</div>
+									<div className="text-red-600 mb-1">{friendlyMessage}</div>
+									{suggestion && (
+										<div className="text-gray-600 text-sm italic">
+											Tip: {suggestion}
+										</div>
+									)}
+								</li>
+							);
+						})}
 					</ul>
+					<div className="mt-4 text-sm text-gray-600 bg-gray-100 p-3 rounded">
+						<p className="font-medium">Need help?</p>
+						<p>
+							Make sure your JSON follows the character schema format. Common
+							issues include:
+						</p>
+						<ul className="list-disc list-inside mt-1">
+							<li>Missing required fields (name, modelProvider, etc.)</li>
+							<li>Incorrect data types (string vs array)</li>
+							<li>Invalid model provider name</li>
+							<li>Arrays that should have at least one item</li>
+						</ul>
+					</div>
 				</div>
 			)}
 
-			{character && (
-				<div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-					<h2 className="text-xl font-semibold text-green-700 mb-4">
-						Valid Character Data
+			{validatedData && (
+				<div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+					<h2 className="text-xl font-semibold mb-4">
+						Character Configuration
 					</h2>
 
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
 						<div className="space-y-4">
 							<div>
-								<h3 className="text-lg font-medium">Basic Info</h3>
-								<p>
-									<span className="font-medium">Name:</span> {character.name}
+								<h3 className="text-lg font-medium border-b pb-2">
+									Basic Info
+								</h3>
+								<p className="mt-2">
+									<span className="font-medium">Name:</span>{" "}
+									{validatedData.name}
 								</p>
 								<p>
 									<span className="font-medium">Model Provider:</span>{" "}
-									{character.modelProvider}
+									{validatedData.modelProvider}
 								</p>
+								{validatedData.settings?.model && (
+									<p>
+										<span className="font-medium">Model:</span>{" "}
+										{validatedData.settings.model}
+									</p>
+								)}
 							</div>
 
 							<div>
-								<h3 className="text-lg font-medium">Clients</h3>
-								<ul className="list-disc list-inside">
-									{character.clients.map((client, idx) => (
-										<li key={idx}>{client}</li>
-									))}
-								</ul>
-							</div>
-
-							{character.plugins && character.plugins.length > 0 && (
-								<div>
-									<h3 className="text-lg font-medium">Plugins</h3>
-									<ul className="list-disc list-inside">
-										{character.plugins.map((plugin, idx) => (
-											<li key={idx}>{plugin}</li>
-										))}
+								<h3 className="text-lg font-medium border-b pb-2">Plugins</h3>
+								{validatedData.plugins && validatedData.plugins.length > 0 ? (
+									<ul className="list-disc list-inside mt-2">
+										{Array.isArray(validatedData.plugins) &&
+											validatedData.plugins.map((plugin: any, idx: number) => (
+												<li key={idx} className="mt-1">
+													{typeof plugin === "string" ? plugin : plugin.name}
+												</li>
+											))}
 									</ul>
-								</div>
-							)}
+								) : (
+									<p className="text-gray-500 mt-2">No plugins configured</p>
+								)}
+							</div>
 						</div>
 
 						<div className="space-y-4">
 							<div>
-								<h3 className="text-lg font-medium">Adjectives</h3>
-								<div className="flex flex-wrap gap-2">
-									{character.adjectives.map((adj, idx) => (
-										<span
-											key={idx}
-											className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
-										>
-											{adj}
-										</span>
-									))}
+								<h3 className="text-lg font-medium border-b pb-2">Traits</h3>
+								<div className="flex flex-wrap gap-2 mt-2">
+									{validatedData.adjectives &&
+										validatedData.adjectives.map((adj: string, idx: number) => (
+											<span
+												key={idx}
+												className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+											>
+												{adj}
+											</span>
+										))}
 								</div>
 							</div>
 
 							<div>
-								<h3 className="text-lg font-medium">Topics</h3>
-								<div className="flex flex-wrap gap-2">
-									{character.topics.map((topic, idx) => (
-										<span
-											key={idx}
-											className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
-										>
-											{topic}
-										</span>
-									))}
+								<h3 className="text-lg font-medium border-b pb-2">Topics</h3>
+								<div className="flex flex-wrap gap-2 mt-2">
+									{validatedData.topics &&
+										validatedData.topics.map((topic: string, idx: number) => (
+											<span
+												key={idx}
+												className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+											>
+												{topic}
+											</span>
+										))}
 								</div>
 							</div>
 						</div>
 					</div>
 
 					<div className="mt-6">
-						<h3 className="text-lg font-medium">Bio</h3>
-						<ul className="list-disc list-inside mt-2">
-							{character.bio.map((item, idx) => (
-								<li key={idx} className="mb-2">
-									{item}
-								</li>
-							))}
-						</ul>
-					</div>
-
-					<div className="mt-6">
-						<h3 className="text-lg font-medium">System</h3>
-						<p className="mt-2 whitespace-pre-wrap bg-gray-50 p-3 rounded border border-gray-200">
-							{character.system}
-						</p>
+						<h3 className="text-lg font-medium border-b pb-2">Bio</h3>
+						<div className="mt-2">
+							{Array.isArray(validatedData.bio) ? (
+								<ul className="list-disc list-inside">
+									{validatedData.bio.map((item: string, idx: number) => (
+										<li key={idx} className="mt-1">
+											{item}
+										</li>
+									))}
+								</ul>
+							) : (
+								<p>{validatedData.bio}</p>
+							)}
+						</div>
 					</div>
 
 					<details className="mt-6">
-						<summary className="cursor-pointer text-lg font-medium py-2">
+						<summary className="cursor-pointer text-lg font-medium py-2 border-b">
 							Show Full JSON Data
 						</summary>
-						<pre className="mt-2 bg-gray-50 p-3 rounded border border-gray-200 overflow-auto max-h-96">
-							{JSON.stringify(character, null, 2)}
-						</pre>
+						<div className="mt-4">
+							<JsonViewer data={validatedData} initialExpanded={false} />
+						</div>
 					</details>
 				</div>
 			)}
