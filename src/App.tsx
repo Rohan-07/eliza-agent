@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { CharacterSchema, validateCharacterConfig } from "./lib/schema";
+import { validateCharacterConfig } from "./lib/schema";
 import { z } from "zod";
 import JsonViewer from "./components/JsonViewer";
-import sampleJson from "./assets/sample.json";
+import sampleJson from "./assets/sample.character.json";
 
 interface ValidationError {
 	path?: string;
